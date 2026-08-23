@@ -2,11 +2,11 @@
 
 **Semana 7 — Práctica: Autenticación y Autorización con OAuth 2.0 / JWT**
 
-> **Nombre completo:** [PENDING: FULL NAME]
-> **Carné / ID de estudiante:** [PENDING: STUDENT ID]
-> **Sede / Sección:** [PENDING: CAMPUS / SECTION]
+> **Nombre completo:** Diego Andres Vásquez Saavedra
+> **Carné / ID de estudiante:** 1890-22-3155
+> **Sede / Sección:** Guastatoya, El Progreso
 > **Tecnología principal:** Python 3.11, FastAPI, SQLAlchemy, SQLite, PyJWT, Argon2
-> **Repositorio:** [PENDING: REPOSITORY URL]
+> **Repositorio:** Week7-SoundAccess-OAuth-API
 
 ---
 

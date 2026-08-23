@@ -1,0 +1,10 @@
+{
+  "iss": "https://auth.soundaccess.local",
+  "sub": "405e3b32575f4f0aa9a52c58a7c9d340",
+  "aud": "https://api.soundaccess.local",
+  "exp": 1787450057,
+  "iat": 1787449157,
+  "jti": "bcdc5df05df14246b78ca0112eed5c16",
+  "client_id": "web-user-client",
+  "scope": "catalog:read profile:read playlist:read playlist:write"
+}

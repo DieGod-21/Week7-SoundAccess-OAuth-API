@@ -19,3 +19,5 @@ venv/
 Thumbs.db
 .vscode/
 .idea/
+
+# Local Playwright cache (not needed in repo)

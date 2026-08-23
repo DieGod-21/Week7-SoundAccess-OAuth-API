@@ -1,0 +1,3 @@
+Status: 200
+token_type=Bearer expires_in=900 scope=catalog:read profile:read playlist:read playlist:write
+access_token (redactado)=eyJhbGciOiJIUzI1...a0DudxMI

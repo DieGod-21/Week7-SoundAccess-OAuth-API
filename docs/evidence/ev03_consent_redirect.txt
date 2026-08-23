@@ -1,0 +1,3 @@
+Status: 302
+Location: http://127.0.0.1:8000/client/callback?code=<redacted>&state=o4kYNmTIkzznHGTxQcPesw
+code (primeros 8 chars, redactado)=TZL8TcAj...

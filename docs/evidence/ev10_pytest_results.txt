@@ -1,0 +1,48 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/claude/Week7_SoundAccess_OAuth_API
+configfile: pytest.ini
+plugins: anyio-4.13.0
+collecting ... collected 38 items
+
+tests/test_scenarios.py::TestScenario1AuthorizationCodePKCE::test_full_flow_grants_access_to_protected_api PASSED [  2%]
+tests/test_scenarios.py::TestScenario1AuthorizationCodePKCE::test_token_contains_required_claims PASSED [  5%]
+tests/test_scenarios.py::TestScenario2ClientCredentials::test_service_client_gets_token_and_reads_catalog PASSED [  7%]
+tests/test_scenarios.py::TestScenario2ClientCredentials::test_service_token_represents_the_client_not_a_user PASSED [ 10%]
+tests/test_scenarios.py::TestScenario3NoToken::test_all_protected_endpoints_return_401 PASSED [ 13%]
+tests/test_scenarios.py::TestScenario3NoToken::test_401_carries_www_authenticate PASSED [ 15%]
+tests/test_scenarios.py::TestScenario4InvalidTokens::test_malformed_token PASSED [ 18%]
+tests/test_scenarios.py::TestScenario4InvalidTokens::test_wrong_signature PASSED [ 21%]
+tests/test_scenarios.py::TestScenario4InvalidTokens::test_expired_token PASSED [ 23%]
+tests/test_scenarios.py::TestScenario4InvalidTokens::test_wrong_issuer PASSED [ 26%]
+tests/test_scenarios.py::TestScenario4InvalidTokens::test_wrong_audience PASSED [ 28%]
+tests/test_scenarios.py::TestScenario5InsufficientScope::test_catalog_only_token_cannot_read_profile PASSED [ 31%]
+tests/test_scenarios.py::TestScenario5InsufficientScope::test_catalog_only_token_cannot_write_playlists PASSED [ 34%]
+tests/test_scenarios.py::TestScenario6ResourceOwnership::test_user_b_cannot_read_or_delete_user_a_playlist PASSED [ 36%]
+tests/test_security.py::TestAuthorizeHardening::test_unregistered_redirect_uri_never_redirects PASSED [ 39%]
+tests/test_security.py::TestAuthorizeHardening::test_unknown_client_never_redirects PASSED [ 42%]
+tests/test_security.py::TestAuthorizeHardening::test_invalid_scope_redirects_with_error PASSED [ 44%]
+tests/test_security.py::TestAuthorizeHardening::test_pkce_plain_method_is_rejected PASSED [ 47%]
+tests/test_security.py::TestAuthorizeHardening::test_missing_code_challenge_is_rejected PASSED [ 50%]
+tests/test_security.py::TestAuthorizeHardening::test_wrong_password_does_not_issue_code PASSED [ 52%]
+tests/test_security.py::TestAuthorizeHardening::test_deny_redirects_with_access_denied PASSED [ 55%]
+tests/test_security.py::TestTokenHardening::test_invalid_pkce_verifier_rejected PASSED [ 57%]
+tests/test_security.py::TestTokenHardening::test_authorization_code_is_single_use PASSED [ 60%]
+tests/test_security.py::TestTokenHardening::test_expired_authorization_code_rejected PASSED [ 63%]
+tests/test_security.py::TestTokenHardening::test_redirect_uri_mismatch_at_token_rejected PASSED [ 65%]
+tests/test_security.py::TestTokenHardening::test_wrong_client_secret_is_401 PASSED [ 68%]
+tests/test_security.py::TestTokenHardening::test_service_client_cannot_escalate_scope PASSED [ 71%]
+tests/test_security.py::TestTokenHardening::test_ropc_grant_is_not_supported PASSED [ 73%]
+tests/test_security.py::TestJwtHardening::test_alg_none_token_rejected PASSED [ 76%]
+tests/test_security.py::TestJwtHardening::test_missing_required_claims_rejected PASSED [ 78%]
+tests/test_security.py::TestJwtHardening::test_token_in_query_string_is_not_accepted PASSED [ 81%]
+tests/test_security.py::TestJwtHardening::test_service_token_cannot_access_user_profile PASSED [ 84%]
+tests/test_security.py::TestRegistrationAndInput::test_client_registration_requires_admin_key PASSED [ 86%]
+tests/test_security.py::TestRegistrationAndInput::test_confidential_registration_returns_secret_once_hashed_in_db PASSED [ 89%]
+tests/test_security.py::TestRegistrationAndInput::test_sql_injection_style_input_is_harmless PASSED [ 92%]
+tests/test_security.py::TestRegistrationAndInput::test_invalid_payload_is_422_without_stack_trace PASSED [ 94%]
+tests/test_security.py::TestRegistrationAndInput::test_invalid_playlist_id_format_rejected PASSED [ 97%]
+tests/test_security.py::TestRegistrationAndInput::test_nonexistent_playlist_is_404 PASSED [100%]
+
+============================== 38 passed in 3.58s ==============================

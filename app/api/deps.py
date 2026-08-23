@@ -6,6 +6,7 @@ scope/subject authorization.
 403 -> the token is valid but the subject is not AUTHORIZED (missing scope,
        machine token on a user-only endpoint, or foreign resource).
 """
+import logging
 from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, Request
@@ -14,6 +15,8 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import User
 from ..security import TokenError, decode_access_token
+
+logger = logging.getLogger("soundaccess.auth")
 
 WWW_AUTH = 'Bearer realm="soundaccess-api"'
 
@@ -59,7 +62,10 @@ def get_auth_context(request: Request) -> AuthContext:
     try:
         claims = decode_access_token(token.strip())
     except TokenError as exc:
-        _unauthorized(f"token validation failed: {exc}")
+        # Log the precise cause server-side; the client only gets a generic,
+        # RFC 6750-style reason (never raw library/codec exception text).
+        logger.info("bearer token rejected: %s", exc)
+        _unauthorized("token is missing, malformed, expired, or fails signature/issuer/audience validation")
     return AuthContext(
         claims=claims,
         scopes=set(claims["scope"].split()),

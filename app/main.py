@@ -14,8 +14,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from .api.router import router as api_router
 from .config import get_settings
@@ -34,6 +36,7 @@ app = FastAPI(
         "Un token inválido o ausente produce **401**; un token válido sin el scope "
         "requerido (o sobre un recurso ajeno) produce **403/404**."
     ),
+    docs_url=None,  # replaced below with a self-hosted Swagger UI (no CDN dependency)
 )
 
 # CORS: explicit local origins only — wildcard is intentionally not used.
@@ -49,6 +52,22 @@ app.include_router(oauth_router)
 app.include_router(api_router)
 
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+# Swagger UI assets are vendored locally (app/static/swagger-ui) instead of
+# fetched from a CDN, so the API documentation works fully offline and does
+# not depend on external network access during grading/demo.
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+@app.get("/docs", include_in_schema=False)
+def swagger_ui():
+    return get_swagger_ui_html(
+        openapi_url=app.openapi_url,
+        title=f"{app.title} - Swagger UI",
+        swagger_js_url="/static/swagger-ui/swagger-ui-bundle.js",
+        swagger_css_url="/static/swagger-ui/swagger-ui.css",
+    )
 
 
 @app.get("/", include_in_schema=False)

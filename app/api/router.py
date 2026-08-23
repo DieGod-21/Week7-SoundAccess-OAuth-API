@@ -80,6 +80,29 @@ def create_playlist(
 
 
 @router.get(
+    "/playlists",
+    response_model=list[PlaylistOut],
+    summary="List the authenticated user's playlists (scope: playlist:read; Task 3)",
+)
+def list_playlists(
+    ctx: AuthContext = Depends(require_scopes("playlist:read")),
+    db: Session = Depends(get_db),
+):
+    """Task 3 addition (assignment §24). Returns only playlists owned by the
+    authenticated user — the same ownership filter used everywhere else in
+    this API, never a global listing."""
+    user = require_user(ctx, db)
+    playlists = (
+        db.query(Playlist)
+        .options(joinedload(Playlist.items).joinedload(PlaylistItem.track))
+        .filter(Playlist.owner_id == user.id)
+        .order_by(Playlist.created_at)
+        .all()
+    )
+    return [_playlist_out(p) for p in playlists]
+
+
+@router.get(
     "/playlists/{playlist_id}",
     response_model=PlaylistOut,
     summary="Read an owned playlist (scope: playlist:read)",

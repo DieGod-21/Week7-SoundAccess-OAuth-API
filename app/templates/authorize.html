@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SoundAccess — Autorización</title>
+  <style>
+    :root { --ink:#1f2430; --accent:#2f6f5e; --muted:#6b7280; --line:#e3e6ea; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: "Segoe UI", system-ui, sans-serif; background:#f4f5f7; color:var(--ink); }
+    .wrap { max-width:430px; margin:6vh auto; padding:0 16px; }
+    .brand { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
+    .brand .logo { width:34px; height:34px; border-radius:9px; background:var(--accent); color:#fff;
+                   display:flex; align-items:center; justify-content:center; font-weight:700; }
+    .brand h1 { font-size:1.15rem; margin:0; letter-spacing:.3px; }
+    .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:26px; }
+    .card h2 { margin:0 0 6px; font-size:1.05rem; }
+    .client { color:var(--muted); font-size:.9rem; margin-bottom:16px; }
+    .client b { color:var(--ink); }
+    ul.scopes { list-style:none; padding:0; margin:0 0 18px; }
+    ul.scopes li { padding:8px 10px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; font-size:.88rem; }
+    ul.scopes li code { color:var(--accent); font-size:.8rem; }
+    label { display:block; font-size:.85rem; margin:10px 0 4px; }
+    input[type=text], input[type=password] { width:100%; padding:9px 10px; border:1px solid var(--line);
+      border-radius:8px; font-size:.95rem; }
+    .actions { display:flex; gap:10px; margin-top:18px; }
+    button { flex:1; padding:10px; border-radius:8px; border:1px solid var(--line); font-size:.95rem; cursor:pointer; }
+    .allow { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .deny { background:#fff; }
+    .err { background:#fdecec; border:1px solid #f5b5b1; color:#8a2620; padding:9px 12px;
+           border-radius:8px; font-size:.85rem; margin-bottom:12px; }
+    .foot { text-align:center; color:var(--muted); font-size:.75rem; margin-top:14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand"><div class="logo">SA</div><h1>SoundAccess</h1></div>
+    <div class="card">
+      <h2>Solicitud de autorización</h2>
+      <p class="client">La aplicación <b>{{ client_name }}</b> solicita acceso a tu cuenta con los siguientes permisos:</p>
+      <ul class="scopes">
+        {% for s in scopes %}
+        <li><code>{{ s.name }}</code> — {{ s.description }}</li>
+        {% endfor %}
+      </ul>
+      {% if error %}<div class="err">{{ error }}</div>{% endif %}
+      <form method="post" action="/oauth/authorize" autocomplete="off">
+        <input type="hidden" name="client_id" value="{{ params.client_id }}">
+        <input type="hidden" name="redirect_uri" value="{{ params.redirect_uri }}">
+        <input type="hidden" name="response_type" value="{{ params.response_type }}">
+        <input type="hidden" name="scope" value="{{ params.scope }}">
+        <input type="hidden" name="state" value="{{ params.state }}">
+        <input type="hidden" name="code_challenge" value="{{ params.code_challenge }}">
+        <input type="hidden" name="code_challenge_method" value="{{ params.code_challenge_method }}">
+        <label for="username">Usuario</label>
+        <input id="username" type="text" name="username" required maxlength="50">
+        <label for="password">Contraseña</label>
+        <input id="password" type="password" name="password" required maxlength="128">
+        <div class="actions">
+          <button class="deny" type="submit" name="action" value="deny">Denegar</button>
+          <button class="allow" type="submit" name="action" value="allow">Autorizar</button>
+        </div>
+      </form>
+    </div>
+    <p class="foot">SoundAccess · Servidor de Autorización OAuth 2.0 (demostración académica)</p>
+  </div>
+</body>
+</html>

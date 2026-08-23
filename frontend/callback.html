@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SoundAccess Web Player — Sesión</title>
+  <style>
+    :root { --ink:#1f2430; --accent:#2f6f5e; --muted:#6b7280; --line:#e3e6ea; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:"Segoe UI", system-ui, sans-serif; background:#f4f5f7; color:var(--ink); }
+    .wrap { max-width:760px; margin:4vh auto 8vh; padding:0 16px; }
+    .brand { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+    .logo { width:34px; height:34px; border-radius:9px; background:var(--accent); color:#fff;
+            display:flex; align-items:center; justify-content:center; font-weight:700; }
+    h1 { font-size:1.15rem; margin:0; }
+    .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:14px; }
+    .card h2 { font-size:.98rem; margin:0 0 10px; }
+    pre { background:#0f172a; color:#d7e0ee; padding:12px; border-radius:8px; overflow-x:auto;
+          font-size:.75rem; line-height:1.45; max-height:280px; }
+    .row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+    button { background:var(--accent); color:#fff; border:none; border-radius:8px;
+             padding:9px 14px; font-size:.85rem; cursor:pointer; }
+    button.secondary { background:#fff; color:var(--ink); border:1px solid var(--line); }
+    .ok  { color:#1c7a4d; font-weight:600; }
+    .bad { color:#a03030; font-weight:600; }
+    .muted { color:var(--muted); font-size:.82rem; }
+    code { background:#f1f2f4; padding:1px 5px; border-radius:5px; font-size:.78rem; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><div class="logo">SA</div><h1>SoundAccess Web Player — sesión autorizada</h1></div>
+
+  <div class="card">
+    <h2>1 · Callback y canje del código (PKCE)</h2>
+    <div id="exchange" class="muted">Procesando callback…</div>
+  </div>
+
+  <div class="card">
+    <h2>2 · Access token (JWT) recibido</h2>
+    <div class="muted">La firma se muestra truncada; el token completo solo viaja en
+      <code>Authorization: Bearer</code>.</div>
+    <pre id="token">—</pre>
+  </div>
+
+  <div class="card">
+    <h2>3 · Consumir la API protegida</h2>
+    <div class="row">
+      <button id="btn-catalog">GET /api/catalog/tracks</button>
+      <button id="btn-me">GET /api/me</button>
+      <button id="btn-create">POST /api/playlists</button>
+      <button id="btn-read" class="secondary">GET /api/playlists/{id}</button>
+      <button id="btn-delete" class="secondary">DELETE /api/playlists/{id}</button>
+    </div>
+    <div id="status" class="muted">Sin peticiones aún.</div>
+    <pre id="result">—</pre>
+  </div>
+</div>
+<script>
+const TOKEN_URL = "/oauth/token";
+const CLIENT_ID = "web-user-client";
+const REDIRECT_URI = window.location.origin + "/client/callback";
+let accessToken = null;
+let lastPlaylistId = null;
+let firstTrackIds = [];
+
+const $ = (id) => document.getElementById(id);
+
+function showToken(token) {
+  const [h, p, sig] = token.split(".");
+  const dec = (part) => JSON.stringify(
+    JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/"))), null, 2);
+  $("token").textContent =
+    "header:  " + dec(h) + "\n\npayload: " + dec(p) +
+    "\n\nsignature (truncada): " + sig.slice(0, 12) + "…";
+}
+
+async function exchangeCode() {
+  const params = new URLSearchParams(window.location.search);
+  const err = params.get("error");
+  if (err) { $("exchange").innerHTML = '<span class="bad">Autorización rechazada:</span> ' + err; return; }
+  const code = params.get("code");
+  const state = params.get("state");
+  const savedState = sessionStorage.getItem("oauth_state");
+  const verifier = sessionStorage.getItem("pkce_verifier");
+  if (!code || !verifier) { $("exchange").innerHTML = '<span class="bad">Falta código o verifier.</span>'; return; }
+  if (state !== savedState) { $("exchange").innerHTML = '<span class="bad">state inválido (posible CSRF). Flujo abortado.</span>'; return; }
+  history.replaceState({}, "", "/client/callback"); // remove code from the URL bar
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code, redirect_uri: REDIRECT_URI, client_id: CLIENT_ID, code_verifier: verifier,
+  });
+  const res = await fetch(TOKEN_URL, { method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
+  const data = await res.json();
+  if (!res.ok) { $("exchange").innerHTML = '<span class="bad">Error en el canje:</span> ' + JSON.stringify(data); return; }
+  accessToken = data.access_token;
+  sessionStorage.removeItem("pkce_verifier");
+  sessionStorage.removeItem("oauth_state");
+  $("exchange").innerHTML = '<span class="ok">Código canjeado correctamente.</span> ' +
+    'token_type=' + data.token_type + ', expires_in=' + data.expires_in + 's, scope=«' + data.scope + '»';
+  showToken(accessToken);
+}
+
+async function call(method, path, body) {
+  const opts = { method, headers: {} };
+  if (accessToken) opts.headers["Authorization"] = "Bearer " + accessToken;
+  if (body) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
+  const res = await fetch(path, opts);
+  let text = "";
+  try { text = res.status === 204 ? "(204 No Content)" : JSON.stringify(await res.json(), null, 2); }
+  catch { text = "(sin cuerpo)"; }
+  $("status").innerHTML = method + " " + path + " → " +
+    (res.ok ? '<span class="ok">' : '<span class="bad">') + res.status + "</span>";
+  $("result").textContent = text;
+  return { status: res.status, text };
+}
+
+$("btn-catalog").onclick = async () => {
+  const r = await call("GET", "/api/catalog/tracks");
+  try { firstTrackIds = JSON.parse(r.text).slice(0, 2).map(t => t.id); } catch {}
+};
+$("btn-me").onclick = () => call("GET", "/api/me");
+$("btn-create").onclick = async () => {
+  const r = await call("POST", "/api/playlists",
+    { name: "Demo desde el cliente", description: "Creada en la demostración", track_ids: firstTrackIds });
+  try { lastPlaylistId = JSON.parse(r.text).id; } catch {}
+};
+$("btn-read").onclick = () => lastPlaylistId
+  ? call("GET", "/api/playlists/" + lastPlaylistId)
+  : ($("status").textContent = "Crea primero una playlist.");
+$("btn-delete").onclick = () => lastPlaylistId
+  ? call("DELETE", "/api/playlists/" + lastPlaylistId)
+  : ($("status").textContent = "Crea primero una playlist.");
+
+exchangeCode();
+</script>
+</body>
+</html>

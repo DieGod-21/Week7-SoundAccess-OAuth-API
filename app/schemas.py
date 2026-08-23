@@ -3,7 +3,18 @@ import re
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-VALID_SCOPES = {"catalog:read", "profile:read", "playlist:read", "playlist:write"}
+# Task 1 scopes (colon-separated), enforced across Authorization Code + PKCE
+# and Client Credentials.
+TASK1_SCOPES = {"catalog:read", "profile:read", "playlist:read", "playlist:write"}
+# Task 3 scopes (dot-separated), used exclusively by the legacy ROPC client
+# and request examples exactly as specified in the Task 3 assignment. Kept
+# as a distinct, additive vocabulary rather than renaming Task 1's scopes,
+# to avoid any regression risk (see docs/task3_gap_analysis.md). The
+# Resource Server treats each Task 3 scope as an alias of its Task 1
+# equivalent for authorization purposes (app/api/deps.py::SCOPE_ALIASES),
+# while the JWT `scope` claim itself still reflects exactly what was granted.
+TASK3_ROPC_SCOPES = {"profile.read", "playlists.read"}
+VALID_SCOPES = TASK1_SCOPES | TASK3_ROPC_SCOPES
 CLIENT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9\-]{2,79}$")
 
 

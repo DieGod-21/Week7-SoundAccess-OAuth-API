@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # Development seeding only
     seed_user_password: str = ""
     seed_service_secret: str = ""
+    # Task 3: secret for the legacy ROPC client ("legacy-client"). Kept
+    # separate from seed_service_secret (client_credentials) so each grant's
+    # demo client has its own independently rotatable credential.
+    seed_legacy_client_secret: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:

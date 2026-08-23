@@ -20,6 +20,21 @@ logger = logging.getLogger("soundaccess.auth")
 
 WWW_AUTH = 'Bearer realm="soundaccess-api"'
 
+# Task 3 introduces a second, dot-separated scope vocabulary
+# (profile.read, playlists.read) used only by the legacy ROPC client, kept
+# deliberately separate from Task 1's colon-separated scopes rather than
+# renaming them (see docs/task3_gap_analysis.md — avoids any regression to
+# the already-tested Task 1 contract). To avoid fragmenting authorization by
+# "which grant issued the token", each Task 3 scope is treated as an
+# authorization-equivalent alias of its Task 1 counterpart here, at the
+# single point where scopes are enforced. The JWT `scope` claim itself is
+# NOT rewritten — a ROPC token still literally carries "profile.read", as
+# the assignment's example expects; only the *comparison* is alias-aware.
+SCOPE_ALIASES: dict[str, set[str]] = {
+    "profile:read": {"profile:read", "profile.read"},
+    "playlist:read": {"playlist:read", "playlists.read"},
+}
+
 
 @dataclass
 class AuthContext:
@@ -75,10 +90,19 @@ def get_auth_context(request: Request) -> AuthContext:
 
 
 def require_scopes(*needed: str):
-    """Dependency factory enforcing OAuth scopes on an endpoint."""
+    """Dependency factory enforcing OAuth scopes on an endpoint.
+
+    Each required scope is satisfied by itself OR by any of its aliases
+    (see SCOPE_ALIASES) — so a Task 3 ROPC token carrying "profile.read"
+    satisfies an endpoint declared as require_scopes("profile:read"), and
+    vice versa.
+    """
 
     def checker(ctx: AuthContext = Depends(get_auth_context)) -> AuthContext:
-        missing = set(needed) - ctx.scopes
+        missing = [
+            scope for scope in needed
+            if not (SCOPE_ALIASES.get(scope, {scope}) & ctx.scopes)
+        ]
         if missing:
             _forbidden(f"required scope(s) missing: {' '.join(sorted(missing))}")
         return ctx

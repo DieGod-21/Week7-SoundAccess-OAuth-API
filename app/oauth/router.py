@@ -3,7 +3,8 @@
 - POST /oauth/clients   — controlled client registration (admin key required)
 - GET  /oauth/authorize — validated authorization request -> login + consent
 - POST /oauth/authorize — authenticate user, record consent, issue auth code
-- POST /oauth/token     — authorization_code (+PKCE S256) and client_credentials
+- POST /oauth/token     — authorization_code (+PKCE S256), client_credentials,
+                          and password (ROPC — Task 3, legacy comparison only)
 
 Design notes:
 * redirect_uri is compared EXACTLY against the registered whitelist; when it
@@ -12,8 +13,16 @@ Design notes:
 * Authorization codes are stored hashed (SHA-256), short-lived, single-use,
   and bound to client, user, redirect_uri, scope and PKCE challenge.
 * Only S256 is accepted as code_challenge_method ("plain" is rejected).
-* ROPC and implicit grants are intentionally not implemented.
+* The implicit grant is intentionally not implemented.
+* grant_type=password (ROPC, RFC 6749 §4.3) is implemented ONLY for Task 3's
+  controlled legacy-flow comparison. It is deliberately NOT a general
+  capability: it is gated to clients whose allowed_grant_types explicitly
+  includes "password" (in this project, only the seeded legacy-client — see
+  app/seed.py), and that client can never be created through the public
+  POST /oauth/clients endpoint. RFC 9700 §2.4 recommends against ROPC for
+  new applications; see docs/comparative_analysis_ropc_vs_pkce.md.
 """
+import logging
 import secrets
 from datetime import timedelta
 from pathlib import Path
@@ -41,6 +50,8 @@ from ..security import (
     sha256_hex,
     verify_secret,
 )
+
+logger = logging.getLogger("soundaccess.oauth")
 
 router = APIRouter(prefix="/oauth", tags=["OAuth 2.0 Authorization Server"])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parents[1] / "templates"))
@@ -313,6 +324,8 @@ def token(
     client_secret: str = Form(default="", max_length=200),
     code_verifier: str = Form(default="", max_length=128),
     scope: str = Form(default="", max_length=500),
+    username: str = Form(default="", max_length=50),
+    password: str = Form(default="", max_length=128),
     db: Session = Depends(get_db),
 ):
     if grant_type == "authorization_code":
@@ -324,7 +337,13 @@ def token(
         return _grant_client_credentials(
             db, client_id=client_id, client_secret=client_secret, scope=scope
         )
-    # ROPC ("password") and any other grant are intentionally unsupported.
+    if grant_type == "password":
+        # ROPC (RFC 6749 §4.3) — implemented strictly for Task 3's controlled
+        # legacy-flow comparison; see the module docstring above.
+        return _grant_ropc(
+            db, client_id=client_id, client_secret=client_secret,
+            username=username, password=password, scope=scope,
+        )
     _token_error("unsupported_grant_type", f"grant_type '{grant_type}' is not supported")
 
 
@@ -391,4 +410,64 @@ def _grant_client_credentials(db: Session, *, client_id: str,
     access_token, expires_in = create_access_token(
         subject=client.client_id, client_id=client.client_id, scope=granted
     )
+    return TokenResponse(access_token=access_token, expires_in=expires_in, scope=granted)
+
+
+def _grant_ropc(db: Session, *, client_id: str, client_secret: str,
+                username: str, password: str, scope: str) -> TokenResponse:
+    """Resource Owner Password Credentials (RFC 6749 §4.3) — Task 3 only.
+
+    Implemented strictly for controlled legacy-flow comparison, never as a
+    recommended integration path (see docs/comparative_analysis_ropc_vs_pkce.md).
+    The client submits the user's password directly, which is exactly the
+    property that makes ROPC undesirable: the password briefly exists in the
+    client's process and travels in the token request body. To limit the
+    blast radius:
+      * only a client explicitly authorized for "password" in
+        allowed_grant_types may use this grant (never "arbitrary clients");
+      * that client must itself authenticate with its own client_secret;
+      * the issued token is short-lived (same TTL as every other grant);
+      * the password is used only as a local variable to call verify_secret
+        and is never stored, logged, or echoed back in any response or JWT
+        claim — it is simply discarded when this function returns.
+    """
+    if not client_id or not client_secret or not username or not password:
+        _token_error("invalid_request", "client_id, client_secret, username and password are required")
+
+    client = db.query(OAuthClient).filter_by(client_id=client_id).first()
+    if (
+        client is None
+        or client.client_type != "confidential"
+        or client.client_secret_hash is None
+        or not verify_secret(client_secret, client.client_secret_hash)
+    ):
+        # Unknown client_id and wrong client_secret are reported identically.
+        _token_error("invalid_client", "client authentication failed", status=401)
+    if "password" not in client.grant_set():
+        # This is what stops ROPC from being usable by "arbitrary clients":
+        # only a client explicitly provisioned for this grant reaches here.
+        _token_error("unauthorized_client", "the password grant is not allowed for this client")
+
+    requested = set(scope.split()) if scope else client.scope_set()
+    if not requested <= client.scope_set() or not requested <= VALID_SCOPES:
+        _token_error("invalid_scope", "requested scope exceeds the client's allowed scopes")
+
+    user = db.query(User).filter_by(username=username).first()
+    valid_password = user is not None and verify_secret(password, user.password_hash)
+    if not valid_password:
+        # Deliberately identical error/status whether the username or the
+        # password was wrong — never reveal which component was incorrect.
+        _token_error("invalid_grant", "invalid resource owner credentials")
+
+    granted = " ".join(sorted(requested))
+    # sub == user.id: unlike client_credentials, this token DOES represent a
+    # person — it reuses the same JWT/scope infrastructure as every other
+    # grant (RFC 9068 claims, 15-minute TTL), so downstream resource checks
+    # (require_user, require_scopes) work identically regardless of which
+    # flow issued the token.
+    access_token, expires_in = create_access_token(
+        subject=user.id, client_id=client.client_id, scope=granted
+    )
+    # `password` and `user` fall out of scope here; nothing sensitive is
+    # retained beyond this function call.
     return TokenResponse(access_token=access_token, expires_in=expires_in, scope=granted)

@@ -9,6 +9,7 @@ from .conftest import (
     ALL_SCOPES,
     REDIRECT_URI,
     REGISTRATION_KEY,
+    SERVICE_SECRET,
     USER_PASSWORD,
     authorize_and_get_code,
     bearer,
@@ -163,13 +164,28 @@ class TestTokenHardening:
         assert resp.status_code == 400
         assert resp.json()["detail"]["error"] == "invalid_scope"
 
-    def test_ropc_grant_is_not_supported(self, client):
+    def test_ropc_rejected_for_a_client_not_authorized_for_it(self, client):
+        # Superseded by Task 3: ROPC (grant_type=password) is now
+        # implemented (see TestTask3Ropc in test_task3_ropc_pkce.py), but
+        # ONLY for the seeded legacy-client. This confirms the original
+        # intent of this test still holds: ROPC must never work for an
+        # "arbitrary client" — here, a confidential client that is properly
+        # authenticated but was never authorized for the password grant.
+        resp = client.post("/oauth/token", data={
+            "grant_type": "password", "username": "ana", "password": USER_PASSWORD,
+            "client_id": "music-service-client", "client_secret": SERVICE_SECRET,
+        })
+        assert resp.status_code == 400
+        assert resp.json()["detail"]["error"] == "unauthorized_client"
+
+    def test_ropc_rejected_without_client_authentication(self, client):
+        # A public client (no secret) can never use ROPC either way.
         resp = client.post("/oauth/token", data={
             "grant_type": "password", "username": "ana", "password": USER_PASSWORD,
             "client_id": "web-user-client",
         })
-        assert resp.status_code == 400
-        assert resp.json()["detail"]["error"] == "unsupported_grant_type"
+        assert resp.status_code in (400, 401)
+        assert resp.json()["detail"]["error"] in ("invalid_request", "invalid_client")
 
 
 # --------------------------- JWT hardening ---------------------------------

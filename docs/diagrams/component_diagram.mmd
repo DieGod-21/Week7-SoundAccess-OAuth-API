@@ -1,0 +1,37 @@
+%% SoundAccess — Diagrama de componentes
+%% Separación lógica: Cliente OAuth, Servidor de Autorización, Servidor de Recursos, Base de datos.
+%% Todos corren en un solo proceso FastAPI para la demostración local,
+%% pero están organizados en módulos independientes (app/oauth, app/api, frontend/).
+graph LR
+    subgraph Navegador del usuario
+        UA["Usuario"]
+        WC["SoundAccess Web Player<br/>(Cliente OAuth público)<br/>frontend/"]
+    end
+
+    subgraph "SoundAccess API — proceso FastAPI (app/)"
+        AS["Servidor de Autorización<br/>app/oauth<br/>· login<br/>· consentimiento<br/>· authorization_code + PKCE<br/>· client_credentials<br/>· emisión de JWT"]
+        RS["Servidor de Recursos<br/>app/api<br/>· validación de JWT<br/>· enforcement de scopes<br/>· catálogo / perfil / playlists"]
+    end
+
+    SC["music-service-client<br/>(Cliente confidencial<br/>service-to-service)"]
+
+    DB[("Base de datos SQLite<br/>users · oauth_clients<br/>authorization_codes<br/>tracks · playlists · playlist_items")]
+
+    UA -->|"1 . abre la app"| WC
+    WC -->|"2 . GET/POST /oauth/authorize"| AS
+    WC -->|"5 . POST /oauth/token (code + code_verifier)"| AS
+    WC -->|"6 . Authorization: Bearer JWT"| RS
+    SC -->|"POST /oauth/token (client_credentials)"| AS
+    SC -->|"Authorization: Bearer JWT"| RS
+
+    AS <-->|"lee/escribe"| DB
+    RS <-->|"lee/escribe"| DB
+
+    classDef client fill:#eef3f1,stroke:#2f6f5e,color:#1f2430;
+    classDef authz fill:#eaf1ff,stroke:#3763c9,color:#1f2430;
+    classDef rsrc fill:#fff2e6,stroke:#c9773a,color:#1f2430;
+    classDef db fill:#f4f0fb,stroke:#7a5fb0,color:#1f2430;
+    class WC,SC client;
+    class AS authz;
+    class RS rsrc;
+    class DB db;

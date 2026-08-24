@@ -30,8 +30,13 @@ app = FastAPI(
     version="1.0.0",
     description=(
         "API de música protegida con OAuth 2.0 y JWT.\n\n"
-        "**Flujos soportados:** Authorization Code + PKCE (S256) y Client Credentials.\n\n"
-        "**Scopes:** `catalog:read`, `profile:read`, `playlist:read`, `playlist:write`.\n\n"
+        "**Flujos soportados:** Authorization Code + PKCE (S256) y Client Credentials. "
+        "También expone ROPC (`grant_type=password`) **estrictamente** como comparación "
+        "legacy de la Tarea 3, gateada a un único cliente confidencial sembrado "
+        "(`legacy-client`) — ver `docs/comparative_analysis_ropc_vs_pkce.md`.\n\n"
+        "**Scopes:** `catalog:read`, `profile:read`, `playlist:read`, `playlist:write` "
+        "(la notación `profile.read`/`playlists.read` es un alias equivalente usado "
+        "solo por el grant ROPC).\n\n"
         "Los endpoints `/api/*` requieren `Authorization: Bearer <JWT>`. "
         "Un token inválido o ausente produce **401**; un token válido sin el scope "
         "requerido (o sobre un recurso ajeno) produce **403/404**."

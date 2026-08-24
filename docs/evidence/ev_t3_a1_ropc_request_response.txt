@@ -1,0 +1,18 @@
+Request:
+POST /oauth/token
+{
+  "grant_type": "password",
+  "username": "alumno.demo",
+  "password": "<REDACTED>",
+  "client_id": "legacy-client",
+  "client_secret": "<REDACTED>",
+  "scope": "profile.read playlists.read"
+}
+
+Response: 200
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...6iEpcipQ",
+  "token_type": "Bearer",
+  "expires_in": 900,
+  "scope": "playlists.read profile.read"
+}

@@ -1,0 +1,2 @@
+First exchange  -> 200 (access_token issued, redacted)
+Second exchange (same code, replayed) -> 400 {'detail': {'error': 'invalid_grant', 'error_description': 'authorization code already used'}}

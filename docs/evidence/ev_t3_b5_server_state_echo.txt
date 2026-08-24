@@ -1,0 +1,7 @@
+Sent state="evidence-tricky-state~abc_123" in the authorization request.
+Server's 302 redirect echoes state="evidence-tricky-state~abc_123" unaltered: True
+
+This exact-echo behavior is what makes the client-side comparison in
+frontend/callback.html (`state !== savedState`) meaningful — see
+ev_t3_b5_browser_state_mismatch_abort.png / .txt for the live-browser
+evidence of the client aborting on a mismatched state.

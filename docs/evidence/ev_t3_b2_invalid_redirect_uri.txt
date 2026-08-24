@@ -1,0 +1,2 @@
+GET /oauth/authorize?redirect_uri=https://attacker.example.com/steal -> 400
+'location' header present: False  (never redirects to an unregistered URI)

@@ -1,0 +1,5 @@
+[no Authorization header] GET /api/me -> 401 {'detail': {'error': 'invalid_token', 'error_description': 'missing bearer token'}}
+[expired token] GET /api/me -> 401 {'detail': {'error': 'invalid_token', 'error_description': 'token is missing, malformed, expired, or fails signature/issuer/audience validation'}}
+[altered signature] GET /api/me -> 401 {'detail': {'error': 'invalid_token', 'error_description': 'token is missing, malformed, expired, or fails signature/issuer/audience validation'}}
+[insufficient scope: token has only playlists.read] GET /api/me -> 403 {'detail': {'error': 'insufficient_scope', 'error_description': 'required scope(s) missing: profile:read'}}
+  same token -> GET /api/playlists -> 200 (works for the scope it DOES have)

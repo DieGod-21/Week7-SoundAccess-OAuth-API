@@ -1,0 +1,21 @@
+Live-browser evidence for B5 (state mismatch), real Chromium via Playwright.
+
+1. Genuine login+consent completed for user 'ana'; the browser's own
+   sessionStorage held the state it generated at step 1 (redacted).
+2. Intercepted the server's real redirect to /client/callback before the
+   client processed it. Its state (redacted) was the CORRECT one for this
+   browser session: real_state == "2nDKbQ...<redacted>".
+3. Replaced only the `state` query parameter with an attacker-forged value
+   and navigated the SAME browser (same sessionStorage) to that tampered URL
+   -- this simulates a replayed/leaked authorization response. The
+   authorization code itself was never exchanged (the guard aborts first)
+   and is redacted below regardless.
+
+Client-side result (#exchange element text):
+  "state inválido (posible CSRF). Flujo abortado."
+
+Network requests made by the page while processing the tampered callback:
+  - http://127.0.0.1:8000/client/callback?code=%3Credacted%3E&state=attacker-forged-state-does-not-match
+
+Requests to /oauth/token during this tampered navigation: 0 (must be 0 -- the client-side guard aborts before any token exchange).
+Screenshot: docs/evidence/screenshots/10_b5_state_mismatch_abort.png

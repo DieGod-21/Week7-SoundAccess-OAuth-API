@@ -1,0 +1,2 @@
+POST /oauth/token with a code_verifier that does NOT match the original code_challenge
+-> 400 {'detail': {'error': 'invalid_grant', 'error_description': 'PKCE verification failed'}}

@@ -1,0 +1,30 @@
+GET /api/me -> 200
+{
+  "id": "b03d782340c740bbade4f09cfb043903",
+  "username": "alumno.demo",
+  "email": "alumno.demo@example.com",
+  "display_name": "Alumno Demo"
+}
+
+GET /api/playlists -> 200
+[
+  {
+    "id": "98e4aa6d8ea44f3ba7cbc56ee02aadd7",
+    "name": "Legacy Mix",
+    "description": "Playlist de demostraci\u00f3n ROPC",
+    "owner_username": "alumno.demo",
+    "items": [
+      {
+        "position": 1,
+        "track": {
+          "id": "12dc36155dae47889bc7e1aae5480ddf",
+          "title": "Paper Planets",
+          "artist": "Cassette Foxes",
+          "album": "Midnight Atlas",
+          "duration_seconds": 187,
+          "genre": "Synthpop"
+        }
+      }
+    ]
+  }
+]

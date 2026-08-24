@@ -1,0 +1,51 @@
+GET /oauth/authorize -> 200 (login+consent form)
+POST /oauth/authorize (allow) -> 302, redirect carries code=<redacted>&state=evidence-state-xyz
+POST /oauth/token -> 200
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...alqb3nuk",
+  "token_type": "Bearer",
+  "expires_in": 900,
+  "scope": "catalog:read profile:read playlist:read playlist:write"
+}
+
+GET /api/me -> 200
+{
+  "id": "588ad67bbc5443be954d864dab7d2257",
+  "username": "ana",
+  "email": "ana@example.com",
+  "display_name": "Ana Morales"
+}
+
+GET /api/playlists (Task 3, list-own) -> 200
+[
+  {
+    "id": "2ab40e2cdde7482392901d0dea35ec1f",
+    "name": "Estudio nocturno",
+    "description": "Para concentrarse",
+    "owner_username": "ana",
+    "items": [
+      {
+        "position": 1,
+        "track": {
+          "id": "2ab74432af5443daa2e2c58833bcb505",
+          "title": "Neon Rivers",
+          "artist": "Cassette Foxes",
+          "album": "Midnight Atlas",
+          "duration_seconds": 214,
+          "genre": "Synthpop"
+        }
+      },
+      {
+        "position": 2,
+        "track": {
+          "id": "09f5d21d5e6b4d05807b23d2031b6f91",
+          "title": "Static Bloom",
+          "artist": "Velvet Circuit",
+          "album": "Low Orbit",
+          "duration_seconds": 276,
+          "genre": "Electronic"
+        }
+      }
+    ]
+  }
+]

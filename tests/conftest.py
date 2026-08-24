@@ -25,6 +25,7 @@ os.environ.update(
     SOUNDACCESS_CORS_ORIGINS="http://127.0.0.1:8000",
     SOUNDACCESS_SEED_USER_PASSWORD="test-users-pw-1",
     SOUNDACCESS_SEED_SERVICE_SECRET="test-service-secret-1",
+    SOUNDACCESS_SEED_LEGACY_CLIENT_SECRET="test-legacy-secret-1",
     SOUNDACCESS_CLIENT_REGISTRATION_KEY="test-registration-key-1",
 )
 
@@ -37,9 +38,11 @@ from app.seed import seed  # noqa: E402
 
 USER_PASSWORD = "test-users-pw-1"
 SERVICE_SECRET = "test-service-secret-1"
+LEGACY_CLIENT_SECRET = "test-legacy-secret-1"
 REGISTRATION_KEY = "test-registration-key-1"
 REDIRECT_URI = "http://127.0.0.1:8000/client/callback"
 ALL_SCOPES = "catalog:read profile:read playlist:read playlist:write"
+ROPC_SCOPES = "profile.read playlists.read"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -125,6 +128,23 @@ def service_token(client, *, scope="catalog:read", secret=SERVICE_SECRET):
             "grant_type": "client_credentials",
             "client_id": "music-service-client",
             "client_secret": secret,
+            "scope": scope,
+        },
+    )
+
+
+def ropc_token(client, *, username="alumno.demo", password=USER_PASSWORD,
+                scope=ROPC_SCOPES, client_id="legacy-client",
+                client_secret=LEGACY_CLIENT_SECRET):
+    """Task 3 — Resource Owner Password Credentials grant."""
+    return client.post(
+        "/oauth/token",
+        data={
+            "grant_type": "password",
+            "username": username,
+            "password": password,
+            "client_id": client_id,
+            "client_secret": client_secret,
             "scope": scope,
         },
     )

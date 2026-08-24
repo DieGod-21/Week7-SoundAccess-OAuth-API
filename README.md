@@ -410,9 +410,6 @@ Tarea 3.
 
 ## 20. Información del repositorio
 
-- **URL del repositorio:** [PENDING: REPOSITORY URL — el proyecto aún vive solo localmente;
-  no tiene un `git remote` configurado. Completar con la URL una vez publicado en
-  GitHub/GitLab.]
 - **Historial de Git:** commits incrementales por fase (ver `git log`); no hay un único
   commit final gigante.
 - **Rama de la Tarea 3:** `task-3-ropc-pkce-comparison`, creada desde `main` (que conserva

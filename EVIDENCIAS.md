@@ -210,6 +210,26 @@ Playwright, solo para B5). Archivos fuente en `docs/evidence/` (prefijo `ev_t3_`
 Ninguna fila se marca PASS sin que existan a la vez implementación, prueba automatizada y
 evidencia real verificable en `docs/evidence/`.
 
+## Tarea 3 — Prueba de reproducibilidad en limpio
+
+Antes de dar por completada la Tarea 3 se ejecutó un clon completamente nuevo de la rama
+`task-3-ropc-pkce-comparison` (`git clone` a un directorio temporal, sin reutilizar ningún
+archivo del entorno de desarrollo) siguiendo exactamente los pasos del README:
+
+1. `python3 -m venv .venv && pip install -r requirements.txt` — sin errores.
+2. `.env` creado desde `.env.example` con secretos aleatorios nuevos (`secrets.token_urlsafe`).
+3. `python -m scripts.init_db` — sembró correctamente 3 usuarios, 3 clientes (incluyendo
+   `legacy-client`) y 3 playlists.
+4. `uvicorn app.main:app` — arrancó sin errores; `/client` y `/docs` respondieron `200`.
+5. `pytest -v` — **55/55 pruebas pasando**, mismo resultado que en el entorno de desarrollo.
+6. Petición ROPC real (`grant_type=password`) contra el servidor recién levantado → `200`.
+7. Flujo Authorization Code + PKCE real y completo (incluye el nuevo `GET /api/playlists`) →
+   `200` en cada paso.
+8. `GET /openapi.json` — 7 rutas documentadas, igual que en el entorno de desarrollo.
+
+El clon temporal y su entorno virtual se eliminaron al finalizar la prueba; ningún archivo
+de esta prueba quedó en el repositorio.
+
 ---
 
 ### Nota sobre redacción de secretos

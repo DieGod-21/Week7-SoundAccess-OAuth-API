@@ -39,6 +39,14 @@ separado sin reescribir el Servidor de Recursos.
 Diagramas editables (Mermaid) con exportación visual en `docs/diagrams/`:
 - `component_diagram.mmd` / `.png` — componentes y flujo de datos.
 - `sequence_diagram.mmd` / `.png` — secuencia completa Authorization Code + PKCE.
+- `ropc.mmd` / `.png` — secuencia completa ROPC (Task 3, ver §10-bis).
+
+> **Tarea 3 — comparación de flujos.** Este proyecto fue extendido (sin
+> reescribirse) para agregar el grant **ROPC** (`grant_type=password`, RFC
+> 6749 §4.3) como flujo legacy de comparación frente a Authorization Code +
+> PKCE. Todo el trabajo vive en la rama `task-3-ropc-pkce-comparison`; `main`
+> conserva intacta la entrega original (Semana 7). Ver §11-bis, §13, §16-bis,
+> `docs/task3_gap_analysis.md` y `docs/comparative_analysis_ropc_vs_pkce.md`.
 
 ## 3. Tecnologías
 
@@ -81,6 +89,7 @@ Copiar `.env.example` a `.env` y completar los valores. **Nunca** comprometer `.
 | `SOUNDACCESS_CORS_ORIGINS` | Orígenes permitidos, separados por coma (sin comodín `*`). |
 | `SOUNDACCESS_SEED_USER_PASSWORD` | Contraseña para los usuarios de demostración al sembrar la base. |
 | `SOUNDACCESS_SEED_SERVICE_SECRET` | Secreto del cliente de servicio al sembrar la base. |
+| `SOUNDACCESS_SEED_LEGACY_CLIENT_SECRET` | Secreto del cliente legacy ROPC (`legacy-client`) al sembrar la base. *(Tarea 3)* |
 | `SOUNDACCESS_CLIENT_REGISTRATION_KEY` | Clave administrativa requerida por `POST /oauth/clients`. |
 
 ## 7. Inicialización de la base de datos y siembra (seed)
@@ -92,10 +101,12 @@ python -m scripts.init_db
 Crea las tablas (si no existen) y siembra datos de desarrollo **una sola vez**
 (es idempotente: si ya hay usuarios, no vuelve a sembrar):
 
-- 2 usuarios: `ana`, `bruno` (contraseña: `SOUNDACCESS_SEED_USER_PASSWORD`).
+- 3 usuarios: `ana`, `bruno`, `alumno.demo` (contraseña: `SOUNDACCESS_SEED_USER_PASSWORD`).
 - 1 cliente público `web-user-client` (Authorization Code + PKCE).
 - 1 cliente confidencial `music-service-client` (Client Credentials).
-- 8 canciones ficticias y 2 playlists de ejemplo.
+- 1 cliente confidencial `legacy-client` (ROPC — solo comparación, Tarea 3).
+- 8 canciones ficticias y 3 playlists de ejemplo (la tercera, propiedad de
+  `alumno.demo`, sirve para ejercitar el flujo ROPC).
 
 ## 8. Ejecutar la aplicación
 
@@ -113,11 +124,20 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 |---|---|---|
 | `ana` | Usuario final | valor de `SOUNDACCESS_SEED_USER_PASSWORD` |
 | `bruno` | Usuario final (para probar aislamiento entre usuarios) | valor de `SOUNDACCESS_SEED_USER_PASSWORD` |
+| `alumno.demo` | Usuario final, exclusivo para ejercitar ROPC *(Tarea 3)* | valor de `SOUNDACCESS_SEED_USER_PASSWORD` |
 
 | Cliente | Tipo | Grant | Scopes permitidos |
 |---|---|---|---|
 | `web-user-client` | Público | `authorization_code` (+PKCE S256) | `catalog:read profile:read playlist:read playlist:write` |
 | `music-service-client` | Confidencial | `client_credentials` | `catalog:read` |
+| `legacy-client` *(Tarea 3)* | Confidencial | `password` (ROPC) | `profile.read playlists.read` |
+
+`legacy-client` **no** puede registrarse mediante `POST /oauth/clients` — el
+validador de ese endpoint solo acepta `authorization_code` y
+`client_credentials` como `allowed_grant_types` (ver `app/schemas.py`). El
+grant `password` únicamente existe para el cliente sembrado por
+`scripts/init_db.py`, deliberadamente, para que ROPC nunca pueda
+auto-aprovisionarse (ver §10-bis).
 
 El registro de nuevos clientes (`POST /oauth/clients`) es controlado: requiere el header
 `X-Registration-Key` con el valor de `SOUNDACCESS_CLIENT_REGISTRATION_KEY`. No existe un
@@ -148,6 +168,69 @@ almacenado), valida que el scope solicitado esté dentro de lo permitido, y emit
 acceder a `/api/me` ni a playlists privadas (devuelve 403: es un token válido pero sin
 autorización para recursos personales).
 
+## 11-bis. Flujo ROPC — Resource Owner Password Credentials *(Tarea 3, solo comparación)*
+
+> **ROPC no es una recomendación de arquitectura.** Se implementa aquí
+> exclusivamente para comparación técnica controlada contra Authorization
+> Code + PKCE, tal como pide la Tarea 3. Ver el análisis completo en
+> `docs/comparative_analysis_ropc_vs_pkce.md`.
+
+`POST /oauth/token` con `grant_type=password` (RFC 6749 §4.3):
+
+```
+grant_type=password&username=alumno.demo&password=<demo-password>&client_id=legacy-client&client_secret=<demo-secret>&scope=profile.read playlists.read
+```
+
+Diagrama de secuencia: `docs/diagrams/ropc.mmd` / `.png`.
+
+**Por qué está restringido a un único cliente sembrado.** El grant `password`
+solo se acepta si el cliente autenticado tiene `"password"` en su
+`allowed_grant_types` — en este proyecto, únicamente `legacy-client`, un
+cliente confidencial creado por `scripts/init_db.py` (nunca a través de
+`POST /oauth/clients`, cuyo validador de schema rechaza `"password"` como
+grant registrable). Esto es lo que impide que **cualquier cliente arbitrario**
+use ROPC.
+
+**Validación y manejo de errores** (`app/oauth/router.py::_grant_ropc`):
+
+| Situación | HTTP | `error` | Nota |
+|---|---|---|---|
+| Falta `client_id`, `client_secret`, `username` o `password` | 400 | `invalid_request` | |
+| `client_id` desconocido o `client_secret` incorrecto | 401 | `invalid_client` | Mismo error para ambos casos (no revela cuál falló). |
+| Cliente autenticado pero sin `password` en sus grants permitidos | 400 | `unauthorized_client` | Así se rechaza ROPC para "clientes arbitrarios". |
+| `scope` solicitado excede lo permitido para el cliente | 400 | `invalid_scope` | |
+| Usuario inexistente **o** contraseña incorrecta | 400 | `invalid_grant` | Mismo error/mensaje en ambos casos — no permite enumerar usuarios. |
+| Credenciales válidas | 200 | — | Emite JWT reutilizando `app/security.py::create_access_token` (misma vida ≤15 min, mismos claims que los demás grants). |
+
+**Manejo de la contraseña.** La contraseña llega solo en el cuerpo del
+`POST /oauth/token` (nunca en la URL ni en query string), se usa una única
+vez como variable local para `verify_secret(password, user.password_hash)`
+dentro de `_grant_ropc`, y se descarta al retornar la función: no se
+almacena, no se registra en logs (`logger.info` solo registra causas
+genéricas de fallo de JWT, nunca contraseñas — ver `app/api/deps.py`), y no
+aparece en la respuesta ni en ningún claim del JWT.
+
+**JWT emitido por ROPC.** Reutiliza exactamente la misma infraestructura de
+firma/validación que Authorization Code y Client Credentials (§12): mismo
+algoritmo fijado explícitamente, mismos claims obligatorios, mismo `iss`/
+`aud`, misma vida corta. El `sub` es el `id` del usuario (`alumno.demo`), no
+el `client_id` — igual que en Authorization Code, y a diferencia de Client
+Credentials. Un token ROPC con firma alterada, `alg=none`, `iss`/`aud`
+incorrectos o expirado es rechazado con 401 exactamente igual que cualquier
+otro token (`app/security.py::decode_access_token` no distingue el grant de
+origen).
+
+**Scopes con notación distinta.** El enunciado de la Tarea 3 especifica los
+scopes ROPC con notación de punto (`profile.read`, `playlists.read`) en vez
+de los scopes con dos puntos ya usados y probados en la Tarea 1
+(`profile:read`, `playlist:read`). Para no arriesgar una regresión sobre el
+contrato ya probado de la Tarea 1, **no se renombraron** los scopes
+existentes; en su lugar, `app/api/deps.py::SCOPE_ALIASES` trata cada par como
+equivalente **solo en el punto de verificación de autorización** — el claim
+`scope` del JWT sigue conteniendo literalmente lo que el enunciado espera
+(`profile.read playlists.read`). Detalle completo y justificación en
+`docs/task3_gap_analysis.md`.
+
 ## 12. JWT — estructura y validación
 
 Claims emitidos: `iss`, `sub`, `aud`, `exp`, `iat`, `jti`, `client_id`, `scope`.
@@ -162,15 +245,17 @@ Validación en cada request protegida (`app/security.py::decode_access_token`):
 
 ## 13. Scopes
 
-| Scope | Efecto |
-|---|---|
-| `catalog:read` | Leer el catálogo público de canciones. |
-| `profile:read` | Leer el perfil del usuario autenticado (solo tokens de usuario). |
-| `playlist:read` | Leer las playlists propias. |
-| `playlist:write` | Crear/eliminar playlists propias. |
+| Scope | Efecto | Alias equivalente *(Tarea 3, solo ROPC)* |
+|---|---|---|
+| `catalog:read` | Leer el catálogo público de canciones. | — |
+| `profile:read` | Leer el perfil del usuario autenticado (solo tokens de usuario). | `profile.read` |
+| `playlist:read` | Leer las playlists propias. | `playlists.read` |
+| `playlist:write` | Crear/eliminar playlists propias. | — |
 
 Los scopes se aplican en el Servidor de Recursos (`app/api/deps.py::require_scopes`), no
-solo se muestran en el token.
+solo se muestran en el token. Los alias de la columna derecha (§11-bis) solo aplican al
+comparar scopes en `require_scopes`; el cliente `legacy-client` únicamente puede emitir
+tokens con `profile.read`/`playlists.read` (nunca con la notación de dos puntos).
 
 ## 14. Endpoints protegidos
 
@@ -179,6 +264,7 @@ solo se muestran en el token.
 | GET | `/api/catalog/tracks` | `catalog:read` | Lista canciones ficticias. |
 | GET | `/api/me` | `profile:read` | Perfil del usuario (rechaza tokens de servicio → 403). |
 | POST | `/api/playlists` | `playlist:write` | Crea una playlist del usuario autenticado. |
+| GET | `/api/playlists` | `playlist:read` | *(Tarea 3)* Lista **solo** las playlists del usuario autenticado. |
 | GET | `/api/playlists/{id}` | `playlist:read` | Solo si el usuario es el dueño (si no, 404). |
 | DELETE | `/api/playlists/{id}` | `playlist:write` | Solo si el usuario es el dueño (si no, 404). |
 
@@ -193,11 +279,25 @@ para no revelar si el recurso existe.
 pytest -v
 ```
 
-38 pruebas, incluyendo los 6 escenarios obligatorios (`tests/test_scenarios.py`) y pruebas
-de endurecimiento adicionales (`tests/test_security.py`): PKCE inválido, código reutilizado,
-código expirado, `redirect_uri` no coincide, secreto de cliente incorrecto, escalamiento de
-scope, `alg=none`, claims faltantes, token en query string, inyección tipo SQL, payload
-inválido, etc.
+55 pruebas: los 6 escenarios obligatorios (`tests/test_scenarios.py`), pruebas de
+endurecimiento (`tests/test_security.py`) — PKCE inválido, código reutilizado, código
+expirado, `redirect_uri` no coincide, secreto de cliente incorrecto, escalamiento de scope,
+`alg=none`, claims faltantes, token en query string, inyección tipo SQL, payload inválido,
+etc. — y, desde la Tarea 3, `tests/test_task3_ropc_pkce.py` con los escenarios A1-A3 (ROPC)
+y B1-B5 (Authorization Code + PKCE), nombrados según los IDs del propio enunciado:
+
+| ID | Escenario | Resultado esperado |
+|---|---|---|
+| A1 | ROPC con credenciales válidas | 200, JWT válido, scopes correctos, funciona en `/api/me` y `/api/playlists` |
+| A2 | ROPC con credenciales/cliente inválidos | `invalid_grant` / `invalid_client` / `unauthorized_client` / `invalid_request` según el caso |
+| A3 | Recurso protegido con token ausente/expirado/alterado/con scope insuficiente | 401 (autenticación) o 403 (autorización) |
+| B1 | Flujo PKCE completo (login, consentimiento, scopes, `state`, `redirect_uri`) | 200, JWT funcional |
+| B2 | `redirect_uri` no registrado | 400, nunca redirige |
+| B3 | `code_verifier` incorrecto | 400 `invalid_grant` |
+| B4 | Reutilización del mismo `authorization_code` | 400 `invalid_grant` en el segundo intento |
+| B5 | Discrepancia de `state` | Servidor devuelve el `state` recibido sin alterar; el cliente aborta el intercambio antes de llamar a `/oauth/token` (verificado como contrato de código en `frontend/callback.html`) |
+
+Ejecutar solo la suite de la Tarea 3: `pytest tests/test_task3_ropc_pkce.py -v`.
 
 ## 16. Controles de seguridad implementados
 
@@ -210,9 +310,40 @@ inválido, etc.
 - CORS restringido a orígenes locales explícitos (sin comodín).
 - Sin trazas de pila expuestas al cliente (manejador global de excepciones).
 - Sin secretos en logs (verificado manualmente, ver `docs/report`).
-- Sin grant ROPC (`password`) implementado.
 - Validación de entrada con Pydantic en todos los endpoints (incluye formato de
   `client_id`, `redirect_uri`, scopes, IDs de recursos).
+- *(Tarea 3)* Grant ROPC (`password`) implementado **solo** como comparación legacy
+  controlada: gateado a un único cliente confidencial sembrado
+  (`legacy-client`), nunca auto-registrable, contraseña nunca almacenada ni
+  registrada en logs, mismo endurecimiento de JWT que los demás grants. Ver
+  §11-bis y `docs/comparative_analysis_ropc_vs_pkce.md`.
+
+## 16-bis. Comparación de flujos: ROPC vs. Authorization Code + PKCE
+
+| Aspecto | ROPC (`password`) | Authorization Code + PKCE |
+|---|---|---|
+| Exposición de la contraseña al cliente | El cliente ve y transmite la contraseña en texto plano dentro del cuerpo del `POST /oauth/token`. | El cliente nunca ve la contraseña; solo el Servidor de Autorización la procesa, en su propio formulario de login. |
+| Superficie de robo de credenciales | Cualquier cliente autorizado para `password` es un punto de fuga potencial de contraseñas reales. | El code_verifier no tiene valor sin el code_challenge original ni el `authorization_code`; interceptar uno solo no basta. |
+| Compatibilidad con MFA / login federado | Incompatible: no hay paso intermedio para un segundo factor o un proveedor externo. | Compatible: el login ocurre en el Servidor de Autorización, que puede añadir MFA o federación sin cambiar al cliente. |
+| Consentimiento explícito del usuario | No hay pantalla de consentimiento; el usuario confía "a ciegas" en el cliente. | Pantalla de login + consentimiento explícita, con scopes visibles antes de autorizar. |
+| Idoneidad para producción/nuevas integraciones | No recomendado (RFC 9700 §2.4); solo aceptable como puente temporal y controlado. | Flujo recomendado para clientes públicos y confidenciales modernos. |
+
+Análisis extendido (250-400 palabras) en `docs/comparative_analysis_ropc_vs_pkce.md`.
+
+## 16-ter. Controles de seguridad: librería vs. implementación explícita
+
+| Control | Origen |
+|---|---|
+| Hashing de contraseñas/secretos (Argon2id) | Librería (`argon2-cffi`), invocada desde `app/security.py`. |
+| Firma/verificación de JWT, rechazo de `alg=none` | Librería (`PyJWT`), configurada explícitamente con `algorithms=[...]` fijo — el rechazo de `alg=none` es un efecto de **cómo se llama** a la librería, no automático. |
+| Validación de `iss`/`aud`/`exp` del JWT | Librería (`PyJWT`, parámetros `issuer`/`audience` en `decode`). |
+| Un solo uso y expiración del `authorization_code` | Implementación explícita del proyecto (`app/oauth/router.py`, columna `used` + `expires_at` en `AuthorizationCode`). |
+| Comparación exacta de `redirect_uri` (anti open-redirect) | Implementación explícita (comparación de string exacta contra la lista blanca del cliente). |
+| PKCE S256 (generación y verificación) | Implementación explícita (`hashlib.sha256` + `base64.urlsafe_b64encode`, RFC 7636 en `app/oauth/router.py`); el rechazo de `plain` es una decisión explícita del proyecto. |
+| Verificación de `state` (anti-CSRF) | Implementación explícita, del lado del **cliente** (`frontend/callback.html`), como exige RFC 6749 §10.12 — el servidor solo lo devuelve sin alterar. |
+| Alcance/scopes por endpoint | Implementación explícita (`app/api/deps.py::require_scopes`), incluidos los alias de la Tarea 3. |
+| Gateo del grant ROPC a un único cliente autorizado | Implementación explícita (`app/oauth/router.py::_grant_ropc`), no una capacidad genérica de la librería OAuth. |
+| Validación de entrada (formatos, longitudes) | Librería (Pydantic v2), con validadores explícitos del proyecto para reglas de negocio (scopes válidos, formato de `client_id`, etc.). |
 
 ## 17. Swagger / OpenAPI
 
@@ -242,12 +373,14 @@ Week7_SoundAccess_OAuth_API/
 │   ├── templates/     # Login + consentimiento (Jinja2)
 │   ├── models.py, schemas.py, security.py, config.py, database.py, seed.py, main.py
 ├── frontend/           # Cliente OAuth de demostración (PKCE en el navegador)
-├── scripts/             # init_db.py, capture_browser_evidence.py
-├── tests/                 # 38 pruebas (pytest)
+├── scripts/             # init_db.py, capture_browser_evidence.py, capture_task3_evidence.py
+├── tests/                 # 55 pruebas (pytest), incluye test_task3_ropc_pkce.py
 ├── docs/
-│   ├── diagrams/       # Mermaid (.mmd) + PNG
+│   ├── diagrams/       # Mermaid (.mmd) + PNG (incluye ropc.mmd, Tarea 3)
 │   ├── evidence/        # EVIDENCIAS.md + capturas + salidas reales
-│   └── report/          # Informe académico
+│   ├── report/          # Informe académico
+│   ├── task3_gap_analysis.md                 # Auditoría de brechas previa a la Tarea 3
+│   └── comparative_analysis_ropc_vs_pkce.md  # Análisis comparativo (Tarea 3)
 ├── .env.example
 ├── requirements.txt
 ├── README.md
@@ -259,3 +392,6 @@ Week7_SoundAccess_OAuth_API/
 - **URL del repositorio:** [PENDING: REPOSITORY URL]
 - **Historial de Git:** commits incrementales por fase (ver `git log`); no hay un único
   commit final gigante.
+- **Rama de la Tarea 3:** `task-3-ropc-pkce-comparison`, creada desde `main` (que conserva
+  intacta la entrega de la Semana 7). Todo el trabajo de ROPC/PKCE-comparativo vive en esa
+  rama, con commits incrementales propios (ver `git log task-3-ropc-pkce-comparison`).

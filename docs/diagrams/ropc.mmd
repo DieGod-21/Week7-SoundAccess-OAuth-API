@@ -1,0 +1,46 @@
+%% SoundAccess — Secuencia completa: ROPC (Resource Owner Password Credentials)
+%% Tarea 3 — flujo legacy, implementado solo para comparación (ver
+%% docs/comparative_analysis_ropc_vs_pkce.md). NO es el flujo recomendado.
+sequenceDiagram
+    autonumber
+    actor U as Usuario (alumno.demo)
+    participant C as Cliente legacy<br/>(legacy-client, confidencial)
+    participant AS as Servidor de Autorización<br/>/oauth/token
+    participant RS as Servidor de Recursos<br/>/api/*
+    participant DB as Base de datos
+
+    Note over U,C: El cliente recibe la contraseña del usuario<br/>directamente (sin pantalla propia del Servidor de Autorización)
+
+    C->>AS: POST /oauth/token<br/>grant_type=password, username, password,<br/>client_id, client_secret, scope
+
+    AS->>DB: autentica al cliente (Argon2id contra client_secret_hash)
+    alt cliente desconocido o secreto incorrecto
+        AS-->>C: 401 invalid_client
+    end
+
+    AS->>AS: verifica que "password" esté en<br/>allowed_grant_types del cliente
+    alt cliente no autorizado para ROPC
+        AS-->>C: 400 unauthorized_client
+    end
+
+    AS->>AS: valida scope solicitado <= scope permitido del cliente
+    alt scope excede lo permitido
+        AS-->>C: 400 invalid_scope
+    end
+
+    AS->>DB: busca al usuario y verifica contraseña (Argon2id)
+    Note over AS: La contraseña se usa solo como variable local<br/>para verify_secret() y se descarta al retornar,<br/>nunca se registra en logs ni se devuelve
+    alt usuario inexistente o contraseña incorrecta
+        AS-->>C: 400 invalid_grant<br/>(mismo error/mensaje en ambos casos — no revela cuál falló)
+    end
+
+    AS->>AS: emite JWT (misma infraestructura que<br/>Authorization Code / Client Credentials: iss, sub=user.id,<br/>aud, exp hasta 15min, iat, jti, client_id, scope)
+    AS-->>C: 200 { access_token (JWT), expires_in=900, scope }
+
+    C->>RS: GET /api/me o /api/playlists<br/>Authorization: Bearer <JWT>
+    RS->>RS: valida firma, iss, aud, exp, claims<br/>(idéntico a cualquier otro token, sin distinguir el grant de origen)
+    RS->>RS: verifica scope (profile.read / playlists.read,<br/>alias de profile:read / playlist:read — ver app/api/deps.py)
+    RS->>DB: consulta datos del usuario autenticado
+    RS-->>C: 200 { ...datos del propio usuario }
+
+    Note over RS: Sin token → 401 invalid_token<br/>Token con scope insuficiente → 403 insufficient_scope<br/>Token alterado/expirado/alg=none → 401 (mismo endurecimiento que PKCE)

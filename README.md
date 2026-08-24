@@ -4,10 +4,10 @@
 **Tarea 3 — Comparación de flujos: ROPC vs. Authorization Code + PKCE**
 
 > **Nombre completo:** Diego Saavedra
-> **Carné / ID de estudiante:** [PENDING: STUDENT ID]
-> **Sede / Sección:** [PENDING: CAMPUS / SECTION]
+> **Carné / ID de estudiante:** 1890-22-3155
+> **Sede / Sección:** Guastatoya, El Progreso
 > **Tecnología principal:** Python 3.11, FastAPI, SQLAlchemy, SQLite, PyJWT, Argon2
-> **Repositorio:** [PENDING: REPOSITORY URL — aún no se ha publicado este proyecto en GitHub/GitLab; no hay `git remote` configurado]
+> **Repositorio:**
 
 ---
 

@@ -1,0 +1,35 @@
+%% SoundAccess — Secuencia completa: Authorization Code + PKCE (S256)
+sequenceDiagram
+    autonumber
+    actor U as Usuario (Ana)
+    participant C as Cliente SoundAccess<br/>Web Player (público)
+    participant AS as Servidor de Autorización<br/>/oauth/*
+    participant RS as Servidor de Recursos<br/>/api/*
+    participant DB as Base de datos
+
+    Note over C: Genera code_verifier aleatorio<br/>code_challenge = BASE64URL(SHA256(verifier))
+
+    C->>AS: GET /oauth/authorize?client_id, redirect_uri,<br/>scope, state, code_challenge, S256
+    AS->>DB: valida client_id y redirect_uri exacta
+    AS-->>C: 200 formulario de login + consentimiento
+
+    U->>AS: POST /oauth/authorize (usuario, contraseña, "Autorizar")
+    AS->>DB: verifica credenciales (Argon2id)
+    AS->>DB: crea authorization_code<br/>(hash SHA-256, un solo uso, ligado a client+user+PKCE, expira en 60s)
+    AS-->>C: 302 redirect_uri?code=...&state=...
+
+    Note over C: Verifica que "state" coincide (anti-CSRF)
+
+    C->>AS: POST /oauth/token<br/>grant_type=authorization_code, code, code_verifier
+    AS->>DB: recupera el código por su hash
+    AS->>AS: valida: no usado, no expirado,<br/>mismo client_id/redirect_uri,<br/>S256(code_verifier) == code_challenge
+    AS->>DB: marca el código como usado (single-use)
+    AS-->>C: 200 { access_token (JWT), expires_in=900, scope }
+
+    C->>RS: GET /api/catalog/tracks<br/>Authorization: Bearer <JWT>
+    RS->>RS: valida firma, iss, aud, exp, iat, claims
+    RS->>RS: verifica scope catalog:read
+    RS->>DB: consulta tracks
+    RS-->>C: 200 [ ...tracks ]
+
+    Note over RS: Sin token → 401 invalid_token<br/>Token válido sin scope → 403 insufficient_scope<br/>Recurso de otro usuario → 404 (sin fuga de datos)

@@ -34,15 +34,39 @@ TRACKS = [
 ]
 
 
+class SeedConfigurationError(RuntimeError):
+    """Raised when required demo seed credentials are missing from the
+    environment. Deliberately fails loudly instead of falling back to a
+    known, guessable default (e.g. "changeme-demo") -- a silent fallback
+    would mean anyone who skips creating .env still gets a working, but
+    predictably-credentialed, demo environment."""
+
+
 def seed(db: Session) -> dict:
     """Populate the database if empty. Returns a summary dict."""
     settings = get_settings()
     if db.query(User).count() > 0:
         return {"status": "already-seeded"}
 
-    user_password = settings.seed_user_password or "changeme-demo"
-    service_secret = settings.seed_service_secret or "changeme-service"
-    legacy_client_secret = settings.seed_legacy_client_secret or "changeme-legacy"
+    missing = [
+        name for name, value in (
+            ("SOUNDACCESS_SEED_USER_PASSWORD", settings.seed_user_password),
+            ("SOUNDACCESS_SEED_SERVICE_SECRET", settings.seed_service_secret),
+            ("SOUNDACCESS_SEED_LEGACY_CLIENT_SECRET", settings.seed_legacy_client_secret),
+        )
+        if not value
+    ]
+    if missing:
+        raise SeedConfigurationError(
+            "Cannot seed demo data: the following environment variables are "
+            f"required but empty/unset: {', '.join(missing)}. Copy .env.example "
+            "to .env and set real values (see README §6) -- there is no "
+            "built-in fallback credential, by design."
+        )
+
+    user_password = settings.seed_user_password
+    service_secret = settings.seed_service_secret
+    legacy_client_secret = settings.seed_legacy_client_secret
 
     ana = User(
         username="ana",

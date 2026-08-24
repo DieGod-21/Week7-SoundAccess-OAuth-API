@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta, timezone
 
 import jwt as pyjwt
+import pytest
 
 from app.config import get_settings
 
@@ -289,3 +290,42 @@ class TestRegistrationAndInput:
         resp = client.get("/api/playlists/" + "f" * 32,
                           headers=bearer(data["access_token"]))
         assert resp.status_code == 404
+
+
+# --------------------------- seed credential hardening ----------------------
+class TestSeedRequiresExplicitCredentials:
+    """Task 3 finalization hardening: app/seed.py must never fall back to a
+    known/guessable credential (it used to default to "changeme-demo" etc.
+    when a SOUNDACCESS_SEED_* variable was unset). Seeding an EMPTY database
+    with any of the three required variables missing must fail loudly and
+    specifically, not silently succeed with a predictable secret. Runs
+    against its own throwaway in-memory database so it never touches the
+    shared, already-seeded test database from the `client` fixture."""
+
+    def test_seeding_fails_clearly_when_a_required_variable_is_missing(self, monkeypatch):
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+
+        from app.config import get_settings
+        from app.database import Base
+        from app import models  # noqa: F401  (register models on Base)
+        from app.seed import seed, SeedConfigurationError
+
+        monkeypatch.setenv("SOUNDACCESS_SEED_USER_PASSWORD", "")
+        get_settings.cache_clear()
+        try:
+            engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+            Base.metadata.create_all(bind=engine)
+            db = sessionmaker(bind=engine)()
+            try:
+                with pytest.raises(SeedConfigurationError) as exc_info:
+                    seed(db)
+                assert "SOUNDACCESS_SEED_USER_PASSWORD" in str(exc_info.value)
+                # No known/guessable fallback value must have been used --
+                # nothing should have been written to this empty database.
+                from app.models import User
+                assert db.query(User).count() == 0
+            finally:
+                db.close()
+        finally:
+            get_settings.cache_clear()  # restore the real test settings for later tests

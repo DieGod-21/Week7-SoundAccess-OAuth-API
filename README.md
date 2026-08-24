@@ -1,12 +1,13 @@
 # SoundAccess — Music API asegurada con OAuth 2.0 y JWT
 
 **Semana 7 — Práctica: Autenticación y Autorización con OAuth 2.0 / JWT**
+**Tarea 3 — Comparación de flujos: ROPC vs. Authorization Code + PKCE**
 
-> **Nombre completo:** [PENDING: FULL NAME]
+> **Nombre completo:** Diego Saavedra
 > **Carné / ID de estudiante:** [PENDING: STUDENT ID]
 > **Sede / Sección:** [PENDING: CAMPUS / SECTION]
 > **Tecnología principal:** Python 3.11, FastAPI, SQLAlchemy, SQLite, PyJWT, Argon2
-> **Repositorio:** [PENDING: REPOSITORY URL]
+> **Repositorio:** [PENDING: REPOSITORY URL — aún no se ha publicado este proyecto en GitHub/GitLab; no hay `git remote` configurado]
 
 ---
 
@@ -38,7 +39,7 @@ separado sin reescribir el Servidor de Recursos.
 
 Diagramas editables (Mermaid) con exportación visual en `docs/diagrams/`:
 - `component_diagram.mmd` / `.png` — componentes y flujo de datos.
-- `sequence_diagram.mmd` / `.png` — secuencia completa Authorization Code + PKCE.
+- `auth-code-pkce.mmd` / `.png` — secuencia completa Authorization Code + PKCE.
 - `ropc.mmd` / `.png` — secuencia completa ROPC (Task 3, ver §10-bis).
 
 > **Tarea 3 — comparación de flujos.** Este proyecto fue extendido (sin
@@ -107,6 +108,13 @@ Crea las tablas (si no existen) y siembra datos de desarrollo **una sola vez**
 - 1 cliente confidencial `legacy-client` (ROPC — solo comparación, Tarea 3).
 - 8 canciones ficticias y 3 playlists de ejemplo (la tercera, propiedad de
   `alumno.demo`, sirve para ejercitar el flujo ROPC).
+
+`SOUNDACCESS_SEED_USER_PASSWORD`, `SOUNDACCESS_SEED_SERVICE_SECRET` y
+`SOUNDACCESS_SEED_LEGACY_CLIENT_SECRET` son **obligatorias** para sembrar: no existe un
+valor de respaldo (`fallback`) en el código. Si alguna falta o está vacía en `.env`,
+`python -m scripts.init_db` falla de inmediato con un `SeedConfigurationError` que indica
+exactamente cuál variable falta, en lugar de sembrar silenciosamente con una credencial
+conocida/predecible.
 
 ## 8. Ejecutar la aplicación
 
@@ -220,16 +228,20 @@ incorrectos o expirado es rechazado con 401 exactamente igual que cualquier
 otro token (`app/security.py::decode_access_token` no distingue el grant de
 origen).
 
-**Scopes con notación distinta.** El enunciado de la Tarea 3 especifica los
-scopes ROPC con notación de punto (`profile.read`, `playlists.read`) en vez
-de los scopes con dos puntos ya usados y probados en la Tarea 1
-(`profile:read`, `playlist:read`). Para no arriesgar una regresión sobre el
-contrato ya probado de la Tarea 1, **no se renombraron** los scopes
-existentes; en su lugar, `app/api/deps.py::SCOPE_ALIASES` trata cada par como
-equivalente **solo en el punto de verificación de autorización** — el claim
-`scope` del JWT sigue conteniendo literalmente lo que el enunciado espera
-(`profile.read playlists.read`). Detalle completo y justificación en
-`docs/task3_gap_analysis.md`.
+**Scopes con notación distinta (compatibilidad, no permisos nuevos).** El enunciado de la
+Tarea 3 especifica los scopes ROPC con notación de punto (`profile.read`, `playlists.read`)
+en vez de los scopes con dos puntos ya usados y probados en la Tarea 1 (`profile:read`,
+`playlist:read`). Para no arriesgar una regresión sobre el contrato ya probado de la Tarea 1
+**no se renombraron** los scopes existentes ni se creó un permiso nuevo: en su lugar,
+`app/api/deps.py::SCOPE_ALIASES` define un mapeo de **compatibilidad** que existe
+exclusivamente para que el enunciado de la Tarea 3 pueda usar la notación de scope que
+especifica, sin romper la implementación ya existente de SoundAccess. `profile.read` y
+`playlists.read` **no son permisos distintos**: en el punto donde se verifica la
+autorización (`require_scopes`), se tratan como el mismo permiso que `profile:read` y
+`playlist:read` respectivamente — conceden acceso exactamente al mismo recurso protegido,
+ni más ni menos. El claim `scope` del JWT sigue conteniendo literalmente lo que el enunciado
+espera (`profile.read playlists.read`); solo la *comparación* en `require_scopes` es
+consciente del alias. Detalle completo y justificación en `docs/task3_gap_analysis.md`.
 
 ## 12. JWT — estructura y validación
 
@@ -376,9 +388,10 @@ Week7_SoundAccess_OAuth_API/
 ├── scripts/             # init_db.py, capture_browser_evidence.py, capture_task3_evidence.py
 ├── tests/                 # 55 pruebas (pytest), incluye test_task3_ropc_pkce.py
 ├── docs/
-│   ├── diagrams/       # Mermaid (.mmd) + PNG (incluye ropc.mmd, Tarea 3)
+│   ├── diagrams/       # Mermaid (.mmd) + PNG: component_diagram, auth-code-pkce, ropc (Tarea 3)
 │   ├── evidence/        # EVIDENCIAS.md + capturas + salidas reales
-│   ├── report/          # Informe académico
+│   ├── report/          # Informe académico de la Semana 7 (heredado; no forma parte de los
+│   │                     # entregables de la Tarea 3, ver nota más abajo)
 │   ├── task3_gap_analysis.md                 # Auditoría de brechas previa a la Tarea 3
 │   └── comparative_analysis_ropc_vs_pkce.md  # Análisis comparativo (Tarea 3)
 ├── .env.example
@@ -387,9 +400,19 @@ Week7_SoundAccess_OAuth_API/
 └── EVIDENCIAS.md
 ```
 
+**Nota sobre `docs/report/`.** El informe académico (`Informe_Academico_SoundAccess.docx`/
+`.pdf`) documenta la entrega original de la Semana 7 (Authorization Code + PKCE, Client
+Credentials). Los entregables exigidos por la Tarea 3 son este `README.md`, los dos
+diagramas editables (`ropc.mmd`, `auth-code-pkce.mmd`), la colección/script de pruebas,
+`EVIDENCIAS.md` y el análisis comparativo — **no** un informe académico nuevo. Por eso el
+informe existente se conserva sin modificar y no debe interpretarse como el informe de la
+Tarea 3.
+
 ## 20. Información del repositorio
 
-- **URL del repositorio:** [PENDING: REPOSITORY URL]
+- **URL del repositorio:** [PENDING: REPOSITORY URL — el proyecto aún vive solo localmente;
+  no tiene un `git remote` configurado. Completar con la URL una vez publicado en
+  GitHub/GitLab.]
 - **Historial de Git:** commits incrementales por fase (ver `git log`); no hay un único
   commit final gigante.
 - **Rama de la Tarea 3:** `task-3-ropc-pkce-comparison`, creada desde `main` (que conserva

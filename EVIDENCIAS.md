@@ -107,79 +107,74 @@ Playwright, solo para B5). Archivos fuente en `docs/evidence/` (prefijo `ev_t3_`
 
 ### A1 — Solicitud ROPC válida
 
-- `ev_t3_a1_ropc_request_response.txt` — `POST /oauth/token` con `grant_type=password` para
-  `alumno.demo`/`legacy-client` → `200`, JWT emitido (access token redactado; contraseña y
-  client_secret redactados en la petición mostrada).
-- `ev_t3_a1_token_claims_decoded.txt` — claims decodificados: `iss`, `sub` (id de
-  `alumno.demo`, distinto de `client_id`), `aud`, `exp`, `iat`, `jti`, `client_id`, `scope`.
-- `ev_t3_a1_protected_resources_200.txt` — el mismo token funciona contra `GET /api/me`
-  (`200`, perfil de `alumno.demo`) y `GET /api/playlists` (`200`, solo su playlist "Legacy
-  Mix").
+| Petición | Resultado esperado | Resultado real | HTTP | Evidencia | Estado |
+|---|---|---|---|---|---|
+| `POST /oauth/token` `grant_type=password`, `username=alumno.demo`, `client_id=legacy-client`, `scope=profile.read playlists.read` | `200`, JWT con claims completos y `scope` solicitado | `200`; JWT emitido con `iss`, `sub` (id de `alumno.demo`, distinto de `client_id`), `aud`, `exp`, `iat`, `jti`, `client_id`, `scope=profile.read playlists.read` | 200 | `ev_t3_a1_ropc_request_response.txt`, `ev_t3_a1_token_claims_decoded.txt` | PASS |
+| `GET /api/me` con el token emitido | `200`, perfil de `alumno.demo` | `200`, perfil de `alumno.demo` | 200 | `ev_t3_a1_protected_resources_200.txt` | PASS |
+| `GET /api/playlists` con el mismo token | `200`, solo playlists propias | `200`, únicamente "Legacy Mix" (la playlist de `alumno.demo`) | 200 | `ev_t3_a1_protected_resources_200.txt` | PASS |
+
+Contraseña y `client_secret` se muestran redactados en la petición documentada; el
+`access_token` se muestra truncado (nunca completo/usable).
 
 ### A2 — Credenciales o cliente inválidos
 
-- `ev_t3_a2_invalid_credentials_or_client.txt` — cinco casos reales contra el servidor en
-  ejecución:
-  - contraseña incorrecta → `400 invalid_grant`;
-  - usuario inexistente → `400 invalid_grant`, **mismo `error_description`** que el caso
-    anterior (verificado explícitamente en el archivo — no hay enumeración de usuarios);
-  - `client_secret` incorrecto → `401 invalid_client`;
-  - cliente autenticado pero sin `password` en sus grants permitidos
-    (`music-service-client`) → `400 unauthorized_client`;
-  - campos faltantes → `400 invalid_request`.
+| Petición | Resultado esperado | Resultado real | HTTP | Evidencia | Estado |
+|---|---|---|---|---|---|
+| ROPC con contraseña incorrecta | `invalid_grant`, sin detalle de cuál credencial falló | `400 invalid_grant`, `error_description="invalid resource owner credentials"` | 400 | `ev_t3_a2_invalid_credentials_or_client.txt` | PASS |
+| ROPC con `username` inexistente | Mismo error que contraseña incorrecta (sin enumeración de usuarios) | `400 invalid_grant`, **mismo `error_description`** que el caso anterior (comparación explícita en el archivo) | 400 | `ev_t3_a2_invalid_credentials_or_client.txt` | PASS |
+| ROPC con `client_secret` incorrecto | `invalid_client` | `401 invalid_client`, `error_description="client authentication failed"` | 401 | `ev_t3_a2_invalid_credentials_or_client.txt` | PASS |
+| ROPC con cliente autenticado pero sin `password` en sus grants permitidos (`music-service-client`) | `unauthorized_client` | `400 unauthorized_client` | 400 | `ev_t3_a2_invalid_credentials_or_client.txt` | PASS |
+| ROPC con `username`/`password`/`client_secret` faltantes | `invalid_request` | `400 invalid_request` | 400 | `ev_t3_a2_invalid_credentials_or_client.txt` | PASS |
 
 ### A3 — Fallos del recurso protegido
 
-- `ev_t3_a3_protected_resource_failures.txt` — cuatro casos reales:
-  - sin header `Authorization` → `401 invalid_token`;
-  - token expirado (forjado con `exp` en el pasado, misma clave real del servidor) →
-    `401 invalid_token`;
-  - firma alterada (últimos 4 caracteres de la firma reemplazados) → `401 invalid_token`;
-  - scope insuficiente (token emitido solo con `playlists.read`, solicitando `/api/me`) →
-    `403 insufficient_scope`; el **mismo token** sí funciona contra `/api/playlists`
-    (`200`), confirmando que el rechazo es de autorización, no de autenticación.
+| Petición | Resultado esperado | Resultado real | HTTP | Evidencia | Estado |
+|---|---|---|---|---|---|
+| `GET /api/me` sin header `Authorization` | `401 invalid_token` | `401 invalid_token`, `"missing bearer token"` | 401 | `ev_t3_a3_protected_resource_failures.txt` | PASS |
+| `GET /api/me` con token expirado (forjado con `exp` en el pasado, misma clave real del servidor) | `401 invalid_token` | `401 invalid_token` | 401 | `ev_t3_a3_protected_resource_failures.txt` | PASS |
+| `GET /api/me` con firma alterada (últimos 4 caracteres reemplazados) | `401 invalid_token` | `401 invalid_token` | 401 | `ev_t3_a3_protected_resource_failures.txt` | PASS |
+| `GET /api/me` con token emitido solo con `playlists.read` | `403 insufficient_scope` (autenticación válida, autorización insuficiente) | `403 insufficient_scope` | 403 | `ev_t3_a3_protected_resource_failures.txt` | PASS |
+| El mismo token (solo `playlists.read`) contra `GET /api/playlists` | `200` (sí tiene ese scope) | `200` — confirma que el 403 anterior es de autorización, no de autenticación | 200 | `ev_t3_a3_protected_resource_failures.txt` | PASS |
 
 ## Tarea 3 — Flujo B: Authorization Code + PKCE (auditado, sin cambios funcionales)
 
 ### B1 — Flujo completo válido
 
-- `ev_t3_b1_pkce_valid_flow.txt` — login, consentimiento, validación de client/scope/state,
-  canje del código, y **el nuevo** `GET /api/playlists` (Tarea 3) devolviendo únicamente las
-  playlists de `ana`, junto con `GET /api/me` (`200`).
+| Petición | Resultado esperado | Resultado real | HTTP | Evidencia | Estado |
+|---|---|---|---|---|---|
+| `GET /oauth/authorize` con `client_id`, `redirect_uri`, `scope`, `state`, `code_challenge`, `code_challenge_method=S256` | `200`, formulario de login+consentimiento | `200` | 200 | `ev_t3_b1_pkce_valid_flow.txt` | PASS |
+| `POST /oauth/authorize` con credenciales válidas de `ana` y `action=allow` | `302` a `redirect_uri` con `code` y el mismo `state` | `302`, código de un solo uso emitido, `state` echado sin alterar | 302 | `ev_t3_b1_pkce_valid_flow.txt` | PASS |
+| `POST /oauth/token` con `code`+`code_verifier` correctos | `200`, JWT válido | `200`, JWT emitido | 200 | `ev_t3_b1_pkce_valid_flow.txt` | PASS |
+| `GET /api/me` y `GET /api/playlists` (Tarea 3) con el token | `200` en ambos | `200` en ambos; `/api/playlists` devuelve solo las playlists de `ana` | 200 | `ev_t3_b1_pkce_valid_flow.txt` | PASS |
 
 ### B2 — `redirect_uri` no registrado
 
-- `ev_t3_b2_invalid_redirect_uri.txt` — `GET /oauth/authorize` con
-  `redirect_uri=https://attacker.example.com/steal` → `400`, sin header `location` (nunca
-  redirige a un URI no registrado).
+| Petición | Resultado esperado | Resultado real | HTTP | Evidencia | Estado |
+|---|---|---|---|---|---|
+| `GET /oauth/authorize` con `redirect_uri=https://attacker.example.com/steal` | `400`, **nunca** redirigir a un URI no registrado (anti open-redirect) | `400`, sin header `location` en la respuesta | 400 | `ev_t3_b2_invalid_redirect_uri.txt` | PASS |
 
 ### B3 — `code_verifier` incorrecto
 
-- `ev_t3_b3_invalid_code_verifier.txt` — canje con un `code_verifier` que no corresponde al
-  `code_challenge` original → `400 invalid_grant`.
+| Petición | Resultado esperado | Resultado real | HTTP | Evidencia | Estado |
+|---|---|---|---|---|---|
+| `POST /oauth/token` con un `code_verifier` que no corresponde al `code_challenge` original | `400 invalid_grant` | `400 invalid_grant`, `"PKCE verification failed"` | 400 | `ev_t3_b3_invalid_code_verifier.txt` | PASS |
 
 ### B4 — Reutilización del código de autorización
 
-- `ev_t3_b4_authorization_code_reuse.txt` — primer canje `200`; segundo canje del **mismo**
-  código → `400 invalid_grant`.
+| Petición | Resultado esperado | Resultado real | HTTP | Evidencia | Estado |
+|---|---|---|---|---|---|
+| Primer `POST /oauth/token` con un código recién emitido | `200`, JWT emitido | `200` | 200 | `ev_t3_b4_authorization_code_reuse.txt` | PASS |
+| Segundo `POST /oauth/token` con el **mismo** código (replay) | `400 invalid_grant` (código de un solo uso) | `400 invalid_grant`, `"authorization code already used"` | 400 | `ev_t3_b4_authorization_code_reuse.txt` | PASS |
 
 ### B5 — Discrepancia de `state`
 
-- `ev_t3_b5_server_state_echo.txt` — evidencia de servidor: al enviar un `state` con
-  caracteres especiales, el `302` de vuelta lo devuelve **exactamente igual**, sin alterar
-  (mecanismo que hace significativa la comparación del lado del cliente).
-- `ev_t3_b5_browser_state_mismatch_abort.txt` + captura
-  `screenshots/10_b5_state_mismatch_abort.png` — **evidencia de navegador real** (Playwright
-  sobre Chromium): se completó un login+consentimiento genuino como `ana`; se interceptó la
-  redirección real del servidor (sin dejar que el navegador la siguiera) para leer el
-  `code`+`state` correctos de esa sesión; se sustituyó **únicamente** el parámetro `state`
-  por un valor forjado y se navegó al callback resultante en el **mismo** navegador (misma
-  `sessionStorage`, mismo `pkce_verifier` guardado). Resultado observado en la interfaz real:
-  *"state inválido (posible CSRF). Flujo abortado."* — y el registro de peticiones de red de
-  esa navegación confirma **cero** llamadas a `/oauth/token`: el guard del lado del cliente
-  (`frontend/callback.html`, `state !== savedState`) aborta el flujo antes de cualquier
-  intento de canje. El `code` se redacta en el archivo de evidencia (nunca se llegó a
-  canjear, y de todas formas expira a los 60s).
+| Petición | Resultado esperado | Resultado real | HTTP | Evidencia | Estado |
+|---|---|---|---|---|---|
+| `GET`+`POST /oauth/authorize` con un `state` con caracteres especiales | El `302` de vuelta debe echar el mismo `state`, sin alterar (para que la comparación del lado del cliente sea significativa) | El `302` devuelve `state` **exactamente igual** al enviado | 302 | `ev_t3_b5_server_state_echo.txt` | PASS |
+| Navegador real (Playwright): login+consentimiento genuino, redirección real interceptada, `state` sustituido por un valor forjado, navegación al callback resultante en el mismo navegador (misma `sessionStorage`) | El cliente debe **abortar** el flujo antes de canjear el código; cero llamadas a `/oauth/token` | Mensaje real en la interfaz: *"state inválido (posible CSRF). Flujo abortado."*; el registro de red de esa navegación confirma **0** llamadas a `/oauth/token` | — (sin llamada al backend) | `ev_t3_b5_browser_state_mismatch_abort.txt`, `screenshots/10_b5_state_mismatch_abort.png` | PASS |
+
+El `code` de autorización se redacta en `ev_t3_b5_browser_state_mismatch_abort.txt` (nunca
+se llegó a canjear, y de todas formas expira a los 60s).
 
 ## Tarea 3 — Swagger / OpenAPI actualizado
 

@@ -41,8 +41,8 @@ Task 1, rama `main`) contra los requisitos de Task 3 (rama
 | Usuario `alumno.demo` | No existe (solo `ana`/`bruno`) | Se añade en `app/seed.py`, contraseña reutilizando `SOUNDACCESS_SEED_USER_PASSWORD` |
 | Endpoint `GET /api/playlists` (listar) | No existe (solo `GET /api/playlists/{id}`) | Se añade en `app/api/router.py`, devuelve solo las playlists del usuario autenticado |
 | Scopes `profile.read` / `playlists.read` | No existen; Task 1 usa `profile:read` / `playlist:read` (dos puntos, singular) | **Decisión de diseño documentada abajo** |
-| Diagrama Mermaid de ROPC | No existe | `docs/diagrams/task3_ropc.mmd` (+ PNG) |
-| Diagrama de Authorization Code + PKCE para Task 3 | Ya existe y sigue siendo exacto (`docs/diagrams/sequence_diagram.mmd`) | Se reutiliza sin duplicar; se referencia desde la documentación de Task 3 |
+| Diagrama Mermaid de ROPC | No existe | `docs/diagrams/ropc.mmd` (+ PNG) |
+| Diagrama de Authorization Code + PKCE para Task 3 | Ya existe y sigue siendo exacto | Renombrado a `docs/diagrams/auth-code-pkce.mmd` (+ PNG) para que ambos diagramas de Task 3 usen nombres explícitos; contenido sin cambios, sin duplicar |
 | Análisis comparativo (250–400 palabras) | No existe | `docs/comparative_analysis_ropc_vs_pkce.md` |
 | Matriz de requisitos Task 3 | No existe | Se añade a `EVIDENCIAS.md` |
 

@@ -326,8 +326,8 @@ body.push(para(
 
 body.push(h1("8. Authorization Code + PKCE"));
 body.push(para("El flujo completo, tal como se implementó y se verificó con Playwright contra la aplicación en ejecución real:"));
-body.push(image("sequence_diagram.png", 520, 512));
-body.push(caption("Figura 2. Secuencia completa Authorization Code + PKCE (fuente editable en docs/diagrams/sequence_diagram.mmd)."));
+body.push(image("auth-code-pkce.png", 520, 512));
+body.push(caption("Figura 2. Secuencia completa Authorization Code + PKCE (fuente editable en docs/diagrams/auth-code-pkce.mmd)."));
 body.push(para(
   "El código de autorización se almacena únicamente como su hash SHA-256 (nunca en texto plano), tiene una vida de 60 segundos, está ligado al cliente, al usuario, al redirect_uri exacto y al code_challenge, y se marca como usado antes de emitir el token — de modo que un intento de reutilización (replay) es rechazado con invalid_grant. El método code_challenge_method=plain es explícitamente rechazado; solo se acepta S256."
 ));
@@ -471,7 +471,7 @@ body.push(simpleTable(
 body.push(caption("Tabla 5. Matriz de trazabilidad requisito → implementación → prueba → evidencia."));
 
 body.push(h2("19.2 Diagramas fuente"));
-body.push(para("Las fuentes editables (Mermaid) de ambos diagramas están disponibles en docs/diagrams/component_diagram.mmd y docs/diagrams/sequence_diagram.mmd, y pueden regenerarse como PNG con @mermaid-js/mermaid-cli."));
+body.push(para("Las fuentes editables (Mermaid) de ambos diagramas están disponibles en docs/diagrams/component_diagram.mmd y docs/diagrams/auth-code-pkce.mmd, y pueden regenerarse como PNG con @mermaid-js/mermaid-cli."));
 
 // ------------------------------------------------------------------ build --
 const doc = new Document({
